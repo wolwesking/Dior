@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PeerJS Video Call</title>
 </head>
+
 <body>
     <h1>PeerJS Video Call</h1>
     <video id="localVideo" autoplay muted></video>
@@ -18,45 +20,46 @@
         const peer = new Peer();
 
         // Handle incoming calls
-        peer.on('call', function(call) {
+        peer.on('call', function (call) {
             // Answer the call and send your own video stream
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(function(stream) {
-                    // Display your own video stream
-                    document.getElementById('localVideo').srcObject = stream;
+            // navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            // .then(function(stream) {
+            // Display your own video stream
+            // document.getElementById('localVideo').srcObject = stream;
 
-                    // Answer the call with your media stream
-                    call.answer(stream);
+            // Answer the call with your media stream
+            call.answer(stream);
 
-                    // Display the remote video stream
-                    call.on('stream', function(remoteStream) {
-                        document.getElementById('remoteVideo').srcObject = remoteStream;
-                    });
-                });
+            // Display the remote video stream
+            call.on('stream', function (remoteStream) {
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+            // });
         });
 
         // Function to call another peer
         function callPeer() {
-            const peerId = document.getElementById('peerIdInput').value;
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(function(stream) {
-                    // Display your own video stream
-                    document.getElementById('localVideo').srcObject = stream;
+            // const peerId = document.getElementById('peerIdInput').value;
+            // navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            // .then(function (stream) {
+            // Display your own video stream
+            // document.getElementById('localVideo').srcObject = stream;
 
-                    // Call the peer with your media stream
-                    const call = peer.call(peerId, stream);
-
-                    // Display the remote video stream
-                    call.on('stream', function(remoteStream) {
-                        document.getElementById('remoteVideo').srcObject = remoteStream;
-                    });
-                });
+            // Call the peer with your media stream
+            const call = peer.call(peerId, stream);
+            call.answer(stream);
+            // Display the remote video stream
+            call.on('stream', function (remoteStream) {
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+            // });
         }
 
         // Log the peer ID
-        peer.on('open', function(id) {
+        peer.on('open', function (id) {
             console.log('My peer ID is: ' + id);
         });
     </script>
 </body>
+
 </html>

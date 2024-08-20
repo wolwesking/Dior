@@ -11,7 +11,7 @@
 
             // Attempt to authenticate with PocketBase
             const authData = await pb.collection('accounts').authWithPassword(username, password);
-
+            
             window.location.href="/"
         } catch (error) {
             console.log("error:", error);
