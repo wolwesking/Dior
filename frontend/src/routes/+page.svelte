@@ -4,61 +4,68 @@
   import Chat from "$lib/Chat.svelte";
   import { currentUser, pb } from "$lib/pocketbase";
   import LoginSelector from "$lib/LoginSelector.svelte";
-
-  // Global variables
+  pb.autoCancellation(false);
   let strangerStream;
   let myStream;
   let isOnline = false;
   let onlineData;
   let peer;
   let searchInterval;
-
-  // Call related variables
   let isCalling = false;
 
   async function peerSetUp() {
-    // Dynamically import PeerJS
     const { default: PeerJs } = await import("peerjs");
     const Peer = PeerJs;
 
-    // Initialize PeerJS
     if (peer) {
-      peer.destroy(); // Cleanup any existing peer instance
+      peer.destroy();
     }
     peer = new Peer();
+
+    peer.on("error", (err) => {
+      console.error("PeerJS error:", err);
+    });
+
     return peer;
   }
 
-  // User's input
   async function handleStream(event) {
     myStream = event.detail;
-    console.log("Received data:", event.detail);
+    console.log("Received stream:", myStream);
 
-    // Start the peer
     peer = await peerSetUp();
+
     peer.on("open", (id) => {
+      console.log("PeerJS connection opened with ID:", id);
       setUserOnline(id);
       startSearch();
     });
 
     peer.on("close", () => {
+      console.log("PeerJS connection closed");
       setUserOffline();
     });
 
     peer.on("call", function (call) {
+      console.log("Incoming call:", call);
       if (!isCalling) {
         call.answer(myStream);
-        call.on("stream", function (remoteStream) {
+        call.on("stream", async function (remoteStream) {
+          console.log("Received remote stream:", remoteStream);
           strangerStream = remoteStream;
-          const data = {
-            isInCall: true,
-          };
+          const data = { isInCall: true };
 
           try {
-            pb.collection("online").update(onlineData.id, data);
+            await pb.collection("online").update(onlineData.id, data);
           } catch (error) {
             console.error("Error updating call status:", error);
           }
+
+          clearInterval(searchInterval); // Stop search for both clients
+        });
+
+        call.on("error", (err) => {
+          console.error("Call error:", err);
         });
       }
     });
@@ -69,15 +76,17 @@
     clearInterval(searchInterval);
     if (peer) {
       peer.destroy();
-      peer = null; // Reset peer instance
+      peer = null;
     }
+    console.log("Call stopped and peer destroyed.");
   }
 
-  function handleSkip() {
-    startSearch();
+  async function handleSkip() {
+    console.log("Skipping current partner.");
+    handleStop(); // Reset the peer connection
+    startSearch(); // Restart the search
   }
 
-  // Functions
   async function setUserOnline(peerId) {
     let user = pb.authStore.model;
     if (user && user.id) {
@@ -89,6 +98,7 @@
       try {
         onlineData = await pb.collection("online").create(data);
         isOnline = true;
+        console.log("User set online with data:", onlineData);
       } catch (error) {
         console.error("Error setting user online:", error);
       }
@@ -100,7 +110,8 @@
       try {
         await pb.collection("online").delete(onlineData.id);
         isOnline = false;
-        onlineData = null; // Reset onlineData
+        onlineData = null;
+        console.log("User set offline.");
       } catch (error) {
         console.error("Error setting user offline:", error);
       }
@@ -108,47 +119,48 @@
   }
 
   async function callPeerId(peerId) {
+    console.log("Calling peer ID:", peerId);
     isCalling = true;
     const call = peer.call(peerId, myStream);
-    call.on("stream", function (remoteStream) {
+    
+    call.on("stream", async function (remoteStream) {
+      console.log("Received remote stream from called peer:", remoteStream);
       strangerStream = remoteStream;
-      const data = {
-        isInCall: true,
-      };
+      const data = { isInCall: true };
 
       try {
-        pb.collection("online").update(onlineData.id, data);
+        await pb.collection("online").update(onlineData.id, data);
       } catch (error) {
         console.error("Error updating call status:", error);
       }
+
+      clearInterval(searchInterval); // Ensure both clients stop searching
     });
 
-    // Update the online record to show the user is in a call
+    call.on("error", (err) => {
+      console.error("Call error:", err);
+    });
   }
 
   function startSearch() {
+    console.log("Starting partner search...");
     searchInterval = setInterval(searchPartner, 5000);
   }
 
   async function searchPartner() {
     let user = pb.authStore.model;
     try {
-      // Check who is not in call
       const records = await pb.collection("online").getFullList({
         sort: "created",
         filter: `isInCall = false && user != "${user.id}"`,
       });
 
-      console.log(records);
-
       if (records.length > 0) {
         clearInterval(searchInterval);
-        console.log("Partner found");
-
-        // Assuming we take the first available partner
+        console.log("Partner found:", records[0].peerId);
         callPeerId(records[0].peerId);
       } else {
-        console.log("Searching for partner");
+        console.log("No partner found, continuing search...");
       }
     } catch (error) {
       console.error("Error searching for partners:", error);
@@ -158,7 +170,7 @@
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", async () => {
       if (peer) {
-        await setUserOffline(); // Ensure the user is marked offline
+        await setUserOffline();
         peer.destroy();
       }
     });
@@ -169,7 +181,6 @@
   <LoginSelector />
 {:else}
   <div class="flex flex-col h-screen">
-    <!-- Row 1: Cameras -->
     <div class="flex h-1/2">
       <div class="w-1/2 p-4">
         <You
@@ -182,10 +193,6 @@
         <Stranger {strangerStream} />
       </div>
     </div>
-
-    <!-- Row 2: Chat -->
-    <!-- <div class="h-1/2 p-4">
-      <Chat />
-    </div> -->
+    <!-- Row 2: Chat (optional) -->
   </div>
 {/if}
