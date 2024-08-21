@@ -5,6 +5,7 @@
   import { currentUser, pb } from "$lib/pocketbase";
   import LoginSelector from "$lib/LoginSelector.svelte";
   pb.autoCancellation(false);
+  
   let strangerStream;
   let myStream;
   let isOnline = false;
